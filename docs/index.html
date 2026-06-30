@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dot Matrix Wave — WebGL shader tool</title>
+    <style>
+      :root {
+        --background: #050507;
+        --foreground: #f4f7f8;
+        --panel: rgb(14 16 19 / 0.78);
+        --panel-border: rgb(255 255 255 / 0.15);
+        --muted: #aab5bb;
+        --accent: #5cf2d6;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .shader-tool {
+        background:
+          linear-gradient(180deg, rgb(255 255 255 / 0.05), transparent 36%),
+          var(--background);
+        min-height: 100vh;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .shader-canvas {
+        display: block;
+        height: 100vh;
+        inset: 0;
+        position: fixed;
+        width: 100vw;
+      }
+
+      .control-panel {
+        backdrop-filter: blur(18px);
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 8px;
+        box-shadow: 0 18px 60px rgb(0 0 0 / 0.42);
+        color: var(--foreground);
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        left: 24px;
+        max-width: min(360px, calc(100vw - 32px));
+        padding: 18px;
+        position: fixed;
+        top: 24px;
+        width: 360px;
+        z-index: 1;
+      }
+
+      .panel-heading {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .panel-heading p {
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.1;
+        margin: 0;
+      }
+
+      .panel-heading span,
+      .control-row span,
+      .seed-display span,
+      .color-field span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      .control-row {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .control-row > span {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .control-row strong {
+        color: var(--foreground);
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: none;
+      }
+
+      .control-row input[type="range"] {
+        accent-color: var(--accent);
+        cursor: pointer;
+        width: 100%;
+      }
+
+      .split-controls {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr) 112px;
+      }
+
+      .seed-display,
+      .color-field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .seed-display {
+        background: rgb(255 255 255 / 0.09);
+        border: 1px solid rgb(255 255 255 / 0.14);
+        border-radius: 6px;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 10px;
+      }
+
+      .seed-display strong {
+        color: var(--foreground);
+        font-family: monospace;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .split-controls button {
+        align-self: end;
+        background: #f4f7f8;
+        border: 0;
+        border-radius: 6px;
+        color: #101215;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        height: 42px;
+      }
+
+      .split-controls button:hover {
+        background: var(--accent);
+      }
+
+      .color-field {
+        align-items: center;
+        flex-direction: row;
+        justify-content: space-between;
+      }
+
+      .color-field input {
+        background: transparent;
+        border: 0;
+        cursor: pointer;
+        height: 42px;
+        padding: 0;
+        width: 72px;
+      }
+
+      .shader-error {
+        background: rgb(255 68 91 / 0.15);
+        border: 1px solid rgb(255 129 145 / 0.36);
+        border-radius: 6px;
+        color: #ffd8de;
+        font-size: 13px;
+        line-height: 1.45;
+        margin: 0;
+        padding: 10px;
+      }
+
+      @media (max-width: 640px) {
+        .control-panel {
+          bottom: 16px;
+          left: 16px;
+          max-width: calc(100vw - 32px);
+          top: auto;
+          width: auto;
+        }
+
+        .panel-heading p {
+          font-size: 18px;
+        }
+      }
+
+      @media (max-width: 380px) {
+        .split-controls {
+          grid-template-columns: 1fr;
+        }
+
+        .split-controls button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shader-tool" id="shader-tool">
+      <canvas
+        id="shader-canvas"
+        class="shader-canvas"
+        aria-label="Animated dot matrix wave shader"
+      ></canvas>
+
+      <section class="control-panel" aria-label="Shader controls">
+        <div class="panel-heading">
+          <p>Dot Matrix Wave</p>
+          <span>WebGL shader tool</span>
+        </div>
+
+        <label class="control-row">
+          <span>
+            Density
+            <strong id="density-value">68</strong>
+          </span>
+          <input id="density" min="18" max="240" step="1" type="range" value="68" />
+        </label>
+
+        <label class="control-row">
+          <span>
+            Speed
+            <strong id="speed-value">1.00x</strong>
+          </span>
+          <input id="speed" min="0" max="3" step="0.05" type="range" value="1" />
+        </label>
+
+        <div class="split-controls">
+          <div class="seed-display">
+            <span>Seed</span>
+            <strong id="seed-value">12070</strong>
+          </div>
+          <button type="button" id="new-seed">New seed</button>
+        </div>
+
+        <label class="color-field">
+          <span>Shader colour</span>
+          <input id="color" type="color" value="#5cf2d6" />
+        </label>
+
+        <p class="shader-error" id="shader-error" style="display: none"></p>
+      </section>
+    </main>
+
+    <script>
+      const minSeed = 10000;
+      const maxSeed = 99999;
+
+      const settings = {
+        density: 68,
+        seed: 12070,
+        color: "#5cf2d6",
+        speed: 1,
+      };
+
+      const pointer = { active: 0, x: 0.5, y: 0.5 };
+
+      const vertexShaderSource = `
+attribute vec2 a_position;
+
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}
+`;
+
+      const fragmentShaderSource = `
+precision highp float;
+
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform float u_density;
+uniform float u_seed;
+uniform vec3 u_color;
+uniform vec2 u_pointer;
+uniform float u_pointer_active;
+uniform float u_speed;
+
+float normalizedSeed() {
+  return mod(u_seed, 100000.0) / 100000.0;
+}
+
+float hash(vec2 point) {
+  float seed = normalizedSeed();
+  vec2 seeded = point + vec2(seed * 997.31, seed * 431.73);
+  return fract(sin(dot(seeded, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float seedValue(float value) {
+  return hash(vec2(value, value * 7.137));
+}
+
+mat2 rotate2d(float angle) {
+  float s = sin(angle);
+  float c = cos(angle);
+  return mat2(c, -s, s, c);
+}
+
+float waveField(vec2 cell, vec2 normalizedCell, float time, out float depth) {
+  vec2 p1 = vec2(seedValue(1.0), seedValue(2.0));
+  vec2 p2 = vec2(seedValue(9.0), seedValue(5.0));
+  vec2 p3 = vec2(seedValue(15.0), seedValue(21.0));
+  vec2 p4 = vec2(seedValue(31.0), seedValue(42.0));
+  vec2 rotatedCell = rotate2d(seedValue(33.0) * 6.2831) * cell;
+
+  float diagonalFrequency = mix(0.18, 0.58, seedValue(12.0));
+  float diagonal = sin(
+    rotatedCell.x * diagonalFrequency +
+    rotatedCell.y * mix(0.18, 0.48, seedValue(14.0)) +
+    time * mix(0.75, 1.95, seedValue(18.0))
+  );
+  float radialA = sin(
+    distance(normalizedCell, p1) * mix(15.0, 42.0, seedValue(22.0)) -
+    time * mix(1.2, 3.6, seedValue(25.0))
+  );
+  float radialB = cos(
+    distance(normalizedCell, p2) * mix(17.0, 54.0, seedValue(28.0)) +
+    time * mix(0.9, 2.8, seedValue(29.0))
+  );
+  float fold = sin(
+    (rotatedCell.x * p3.x - rotatedCell.y * p3.y) * mix(0.12, 0.44, seedValue(36.0)) +
+    time * mix(0.65, 1.7, seedValue(40.0))
+  );
+  float ridge = cos(distance(normalizedCell, p4) * mix(24.0, 72.0, seedValue(45.0)) - time);
+
+  float field = diagonal * 0.3 + radialA * 0.26 + radialB * 0.22 + fold * 0.16 + ridge * 0.06;
+  depth = smoothstep(-0.92, 0.95, field);
+
+  return field;
+}
+
+void main() {
+  vec2 st = gl_FragCoord.xy / u_resolution.xy;
+  vec2 aspect = u_resolution / min(u_resolution.x, u_resolution.y);
+  vec2 centered = (st - 0.5) * aspect;
+  float time = u_time * u_speed;
+  vec2 pointerDelta = (st - u_pointer) * aspect;
+  float pointerDistance = length(pointerDelta);
+  vec2 pointerDir = normalize(pointerDelta + vec2(0.0001));
+  // Irregular, soft falloff so there is no clean circular boundary.
+  float pointerAngle = atan(pointerDelta.y, pointerDelta.x);
+  float falloffWobble = 0.82
+    + 0.16 * sin(pointerAngle * 3.0 + time * 0.5)
+    + 0.10 * sin(pointerAngle * 5.0 - time * 0.37);
+  float hover = u_pointer_active *
+    (1.0 - smoothstep(0.0, 0.5 * falloffWobble, pointerDistance));
+  hover *= hover;
+  // Gentle, slightly swirled displacement only — no concentric ripple.
+  // Taper to zero right at the cursor so it ramps up instead of pinching.
+  float displaceShape = hover * smoothstep(0.0, 0.18, pointerDistance);
+  vec2 pointerSwirl = vec2(-pointerDir.y, pointerDir.x);
+  centered += (pointerDir * 0.7 + pointerSwirl * 0.3) * displaceShape * 0.05;
+  float cameraTilt = mix(-0.72, 0.72, seedValue(52.0));
+  float cameraYaw = mix(-0.34, 0.34, seedValue(56.0));
+  vec2 plane = rotate2d(cameraYaw) * centered;
+  float perspective = 1.0 + plane.y * cameraTilt;
+  perspective = clamp(perspective, 0.44, 1.74);
+  float perspectiveDepth = smoothstep(0.44, 1.74, perspective);
+  vec2 projected = vec2(plane.x / perspective, plane.y * perspective);
+  vec2 scaled = (projected + 0.5 * aspect) * u_density;
+  vec2 cell = floor(scaled);
+  vec2 local = fract(scaled) - 0.5;
+  vec2 normalizedCell = (cell / (aspect * u_density)) + vec2(seedValue(61.0), seedValue(62.0)) * 0.18;
+
+  float randomPhase = hash(cell);
+  float depth = 0.0;
+  float wave = waveField(cell + randomPhase, normalizedCell, time, depth);
+  depth = clamp(depth + hover * 0.06, 0.0, 1.0);
+  float waveAccent = 0.5 + 0.5 * wave;
+  float densityFade = smoothstep(72.0, 210.0, u_density);
+  float pulse = 0.5 + 0.5 * sin(time * mix(1.0, 2.4, seedValue(70.0)) + randomPhase * 6.2831);
+  float radius = mix(0.045, 0.36, depth);
+  radius *= mix(0.88, 1.16, pulse);
+  radius *= mix(1.0, 0.24, densityFade);
+  radius *= mix(0.72, 1.28, perspectiveDepth);
+  radius *= 1.0 + hover * 0.06;
+
+  float distToCenter = length(local);
+  float edgeSoftness = mix(0.03, 0.006, densityFade);
+  float dotMask = 1.0 - smoothstep(radius, radius + edgeSoftness, distToCenter);
+
+  vec2 cross = abs(local);
+  float fineLine = 1.0 - smoothstep(0.006, 0.022, min(cross.x, cross.y));
+  float meshGlow = fineLine * depth * mix(0.7, 1.22, waveAccent) * mix(0.1, 0.018, densityFade);
+
+  float vignette = smoothstep(0.95, 0.25, distance(st, vec2(0.5)));
+  vec3 base = vec3(0.012, 0.012, 0.015);
+  vec3 low = u_color * mix(0.08, 0.18, perspectiveDepth);
+  vec3 high = mix(u_color, vec3(1.0), 0.26 + depth * 0.28);
+  vec3 dotColor = mix(low, high, depth);
+  dotColor *= 0.44 + pulse * 0.28 + depth * 0.5 + waveAccent * 0.16;
+  dotColor *= mix(0.42, 1.2, perspectiveDepth);
+
+  vec3 color = base + meshGlow * u_color;
+  color = mix(color, dotColor, dotMask);
+  color += u_color * dotMask * 0.22 * vignette * depth;
+  color += vec3(depth) * dotMask * 0.05;
+  float beadHighlight = 1.0 - smoothstep(
+    0.02,
+    0.2,
+    length(local + vec2(0.16, -0.18) * mix(0.7, 1.4, perspectiveDepth))
+  );
+  float underside = smoothstep(
+    -0.18,
+    0.42,
+    dot(local, normalize(vec2(0.42, -0.9)))
+  );
+  color += vec3(1.0) * beadHighlight * dotMask * depth * 0.22;
+  color *= 1.0 - underside * dotMask * mix(0.08, 0.24, depth);
+  color += mix(u_color, vec3(1.0), 0.45) * dotMask * hover * 0.05;
+
+  gl_FragColor = vec4(color, 1.0);
+}
+`;
+
+      function hexToRgb(hex) {
+        const value = hex.replace("#", "");
+        const int = Number.parseInt(value, 16);
+        return {
+          r: ((int >> 16) & 255) / 255,
+          g: ((int >> 8) & 255) / 255,
+          b: (int & 255) / 255,
+        };
+      }
+
+      function compileShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        if (!shader) throw new Error("Unable to create shader.");
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          const message = gl.getShaderInfoLog(shader) || "Unknown shader error.";
+          gl.deleteShader(shader);
+          throw new Error(message);
+        }
+        return shader;
+      }
+
+      function createProgram(gl) {
+        const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+        const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+        const program = gl.createProgram();
+        if (!program) throw new Error("Unable to create WebGL program.");
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+          const message = gl.getProgramInfoLog(program) || "Unknown program error.";
+          gl.deleteProgram(program);
+          throw new Error(message);
+        }
+        gl.deleteShader(vertexShader);
+        gl.deleteShader(fragmentShader);
+        return program;
+      }
+
+      const errorEl = document.getElementById("shader-error");
+      function reportShaderError(message) {
+        errorEl.textContent = message;
+        errorEl.style.display = "block";
+      }
+
+      const canvas = document.getElementById("shader-canvas");
+      const gl = canvas.getContext("webgl", {
+        alpha: false,
+        antialias: false,
+        powerPreference: "high-performance",
+      });
+
+      if (!gl) {
+        reportShaderError("WebGL is not available in this browser.");
+      } else {
+        let program;
+        try {
+          program = createProgram(gl);
+        } catch (error) {
+          reportShaderError(error instanceof Error ? error.message : "Shader failed.");
+        }
+
+        if (program) {
+          const positionLocation = gl.getAttribLocation(program, "a_position");
+          const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+          const timeLocation = gl.getUniformLocation(program, "u_time");
+          const densityLocation = gl.getUniformLocation(program, "u_density");
+          const seedLocation = gl.getUniformLocation(program, "u_seed");
+          const colorLocation = gl.getUniformLocation(program, "u_color");
+          const pointerLocation = gl.getUniformLocation(program, "u_pointer");
+          const pointerActiveLocation = gl.getUniformLocation(program, "u_pointer_active");
+          const speedLocation = gl.getUniformLocation(program, "u_speed");
+          const buffer = gl.createBuffer();
+
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+            gl.STATIC_DRAW
+          );
+          gl.useProgram(program);
+          gl.enableVertexAttribArray(positionLocation);
+          gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+          const startedAt = performance.now();
+
+          const resize = () => {
+            const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+            const width = Math.floor(window.innerWidth * pixelRatio);
+            const height = Math.floor(window.innerHeight * pixelRatio);
+            if (canvas.width !== width || canvas.height !== height) {
+              canvas.width = width;
+              canvas.height = height;
+            }
+            gl.viewport(0, 0, width, height);
+          };
+
+          const render = (now) => {
+            resize();
+            const rgb = hexToRgb(settings.color);
+            gl.useProgram(program);
+            gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+            gl.uniform1f(timeLocation, (now - startedAt) / 1000);
+            gl.uniform1f(densityLocation, settings.density);
+            gl.uniform1f(seedLocation, settings.seed);
+            gl.uniform3f(colorLocation, rgb.r, rgb.g, rgb.b);
+            gl.uniform2f(pointerLocation, pointer.x, pointer.y);
+            gl.uniform1f(pointerActiveLocation, pointer.active);
+            gl.uniform1f(speedLocation, settings.speed);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            requestAnimationFrame(render);
+          };
+
+          requestAnimationFrame(render);
+          window.addEventListener("resize", resize);
+        }
+      }
+
+      // Pointer tracking
+      window.addEventListener("pointermove", (event) => {
+        pointer.active = 1;
+        pointer.x = event.clientX / window.innerWidth;
+        pointer.y = 1 - event.clientY / window.innerHeight;
+      });
+      window.addEventListener("pointerleave", () => {
+        pointer.active = 0;
+      });
+      window.addEventListener("blur", () => {
+        pointer.active = 0;
+      });
+
+      // Controls
+      const densityInput = document.getElementById("density");
+      const densityValue = document.getElementById("density-value");
+      const speedInput = document.getElementById("speed");
+      const speedValue = document.getElementById("speed-value");
+      const seedValue = document.getElementById("seed-value");
+      const colorInput = document.getElementById("color");
+      const newSeedButton = document.getElementById("new-seed");
+
+      densityInput.addEventListener("input", (event) => {
+        settings.density = Number(event.target.value);
+        densityValue.textContent = String(settings.density);
+      });
+      speedInput.addEventListener("input", (event) => {
+        settings.speed = Number(event.target.value);
+        speedValue.textContent = settings.speed.toFixed(2) + "x";
+      });
+      colorInput.addEventListener("input", (event) => {
+        settings.color = event.target.value;
+        document.getElementById("shader-tool").style.setProperty("--accent", settings.color);
+      });
+      newSeedButton.addEventListener("click", () => {
+        const range = maxSeed - minSeed + 1;
+        const values = new Uint32Array(1);
+        window.crypto.getRandomValues(values);
+        let nextSeed = minSeed + (values[0] % range);
+        if (nextSeed === settings.seed) {
+          nextSeed = minSeed + ((nextSeed + 7919) % range);
+        }
+        settings.seed = nextSeed;
+        seedValue.textContent = String(settings.seed);
+      });
+
+      document.getElementById("shader-tool").style.setProperty("--accent", settings.color);
+    </script>
+  </body>
+</html>
