@@ -6,7 +6,7 @@
   --panel: rgb(14 16 19 / 0.78);
   --panel-border: rgb(255 255 255 / 0.15);
   --muted: #aab5bb;
-  --accent: #5cf2d6;
+  --accent: #7e87a8;
 }
 
 @theme inline {
@@ -72,6 +72,13 @@ input {
   gap: 3px;
 }
 
+.panel-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
 .panel-heading p {
   font-size: 20px;
   font-weight: 700;
@@ -88,6 +95,49 @@ input {
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.panel-toggle {
+  backdrop-filter: blur(18px);
+  background: rgb(18 20 24 / 0.82);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 10px 13px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.panel-toggle:hover {
+  background: rgb(35 38 44 / 0.94);
+  border-color: color-mix(in srgb, var(--accent) 60%, white 15%);
+}
+
+.panel-toggle:active {
+  transform: scale(0.97);
+}
+
+.panel-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.panel-toggle-inline {
+  flex: 0 0 auto;
+  margin-top: -3px;
+}
+
+.panel-toggle-floating {
+  left: 24px;
+  position: fixed;
+  top: 24px;
+  z-index: 2;
 }
 
 .control-row {
@@ -162,18 +212,38 @@ input {
 }
 
 .color-field {
+  align-items: stretch;
+}
+
+.color-field > span:first-child {
   align-items: center;
-  flex-direction: row;
+  display: flex;
   justify-content: space-between;
 }
 
-.color-field input {
+.color-field strong {
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+}
+
+.color-picker-shell {
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 6px;
+  display: block;
+  height: 42px;
+  overflow: hidden;
+}
+
+.color-picker-shell input {
   background: transparent;
   border: 0;
   cursor: pointer;
-  height: 42px;
+  height: 58px;
+  margin: -8px;
   padding: 0;
-  width: 72px;
+  width: calc(100% + 16px);
 }
 
 .shader-error {
@@ -198,6 +268,11 @@ input {
 
   .panel-heading p {
     font-size: 18px;
+  }
+
+  .panel-toggle-floating {
+    left: 16px;
+    top: 16px;
   }
 }
 

@@ -19,10 +19,10 @@ const minSeed = 10000;
 const maxSeed = 99999;
 
 const defaultSettings: ShaderSettings = {
-  density: 68,
+  density: 62,
   seed: 12070,
-  color: "#5cf2d6",
-  speed: 1,
+  color: "#7e87a8",
+  speed: 0.8,
 };
 
 const vertexShaderSource = `
@@ -106,27 +106,24 @@ void main() {
   vec2 pointerDelta = (st - u_pointer) * aspect;
   float pointerDistance = length(pointerDelta);
   vec2 pointerDir = normalize(pointerDelta + vec2(0.0001));
-  // Irregular, soft falloff so there is no clean circular boundary.
-  float pointerAngle = atan(pointerDelta.y, pointerDelta.x);
-  float falloffWobble = 0.82
-    + 0.16 * sin(pointerAngle * 3.0 + time * 0.5)
-    + 0.10 * sin(pointerAngle * 5.0 - time * 0.37);
-  float hover = u_pointer_active *
-    (1.0 - smoothstep(0.0, 0.5 * falloffWobble, pointerDistance));
-  hover *= hover;
-  // Gentle, slightly swirled displacement only — no concentric ripple.
-  // Taper to zero right at the cursor so it ramps up instead of pinching.
-  float displaceShape = hover * smoothstep(0.0, 0.18, pointerDistance);
   vec2 pointerSwirl = vec2(-pointerDir.y, pointerDir.x);
-  centered += (pointerDir * 0.7 + pointerSwirl * 0.3) * displaceShape * 0.05;
-  float cameraTilt = mix(-0.72, 0.72, seedValue(52.0));
-  float cameraYaw = mix(-0.34, 0.34, seedValue(56.0));
-  vec2 plane = rotate2d(cameraYaw) * centered;
-  float perspective = 1.0 + plane.y * cameraTilt;
-  perspective = clamp(perspective, 0.44, 1.74);
-  float perspectiveDepth = smoothstep(0.44, 1.74, perspective);
-  vec2 projected = vec2(plane.x / perspective, plane.y * perspective);
-  vec2 scaled = (projected + 0.5 * aspect) * u_density;
+
+  // A soft, asymmetric liquid lens. The two angular bands keep the hover
+  // response organic instead of reading as a circular ripple.
+  float pointerAngle = atan(pointerDelta.y, pointerDelta.x);
+  float falloffWobble = 0.86
+    + 0.13 * sin(pointerAngle * 3.0 + time * 0.42)
+    + 0.08 * sin(pointerAngle * 5.0 - time * 0.31);
+  float hover = u_pointer_active *
+    (1.0 - smoothstep(0.035, 0.47 * falloffWobble, pointerDistance));
+  float liquidBand = hover * smoothstep(0.015, 0.15, pointerDistance);
+  float shear = sin(pointerAngle * 2.0 - time * 0.65) * 0.5 + 0.5;
+  centered += pointerSwirl * liquidBand * mix(0.008, 0.027, shear);
+  centered += pointerDir * liquidBand * 0.019;
+
+  // Keep the resting matrix orthogonal like the reference. Motion changes
+  // luminance; geometry only bends inside the liquid hover lens.
+  vec2 scaled = (centered + 0.5 * aspect) * u_density;
   vec2 cell = floor(scaled);
   vec2 local = fract(scaled) - 0.5;
   vec2 normalizedCell = (cell / (aspect * u_density)) + vec2(seedValue(61.0), seedValue(62.0)) * 0.18;
@@ -134,49 +131,25 @@ void main() {
   float randomPhase = hash(cell);
   float depth = 0.0;
   float wave = waveField(cell + randomPhase, normalizedCell, time, depth);
-  depth = clamp(depth + hover * 0.06, 0.0, 1.0);
+  depth = clamp(depth, 0.0, 1.0);
   float waveAccent = 0.5 + 0.5 * wave;
-  float densityFade = smoothstep(72.0, 210.0, u_density);
   float pulse = 0.5 + 0.5 * sin(time * mix(1.0, 2.4, seedValue(70.0)) + randomPhase * 6.2831);
-  float radius = mix(0.045, 0.36, depth);
-  radius *= mix(0.88, 1.16, pulse);
-  radius *= mix(1.0, 0.24, densityFade);
-  radius *= mix(0.72, 1.28, perspectiveDepth);
-  radius *= 1.0 + hover * 0.06;
+  float radius = mix(0.055, 0.115, depth);
+  radius *= mix(0.92, 1.07, pulse);
+  radius *= 1.0 + hover * 0.22;
 
   float distToCenter = length(local);
-  float edgeSoftness = mix(0.03, 0.006, densityFade);
+  float edgeSoftness = 0.025;
   float dotMask = 1.0 - smoothstep(radius, radius + edgeSoftness, distToCenter);
 
-  vec2 cross = abs(local);
-  float fineLine = 1.0 - smoothstep(0.006, 0.022, min(cross.x, cross.y));
-  float meshGlow = fineLine * depth * mix(0.7, 1.22, waveAccent) * mix(0.1, 0.018, densityFade);
-
   float vignette = smoothstep(0.95, 0.25, distance(st, vec2(0.5)));
-  vec3 base = vec3(0.012, 0.012, 0.015);
-  vec3 low = u_color * mix(0.08, 0.18, perspectiveDepth);
-  vec3 high = mix(u_color, vec3(1.0), 0.26 + depth * 0.28);
-  vec3 dotColor = mix(low, high, depth);
-  dotColor *= 0.44 + pulse * 0.28 + depth * 0.5 + waveAccent * 0.16;
-  dotColor *= mix(0.42, 1.2, perspectiveDepth);
+  vec3 base = vec3(0.009, 0.010, 0.013);
+  vec3 dotColor = mix(u_color * 0.18, u_color * 0.62, depth);
+  dotColor *= 0.58 + pulse * 0.12 + waveAccent * 0.2;
+  dotColor *= mix(0.52, 1.0, vignette);
 
-  vec3 color = base + meshGlow * u_color;
-  color = mix(color, dotColor, dotMask);
-  color += u_color * dotMask * 0.22 * vignette * depth;
-  color += vec3(depth) * dotMask * 0.05;
-  float beadHighlight = 1.0 - smoothstep(
-    0.02,
-    0.2,
-    length(local + vec2(0.16, -0.18) * mix(0.7, 1.4, perspectiveDepth))
-  );
-  float underside = smoothstep(
-    -0.18,
-    0.42,
-    dot(local, normalize(vec2(0.42, -0.9)))
-  );
-  color += vec3(1.0) * beadHighlight * dotMask * depth * 0.22;
-  color *= 1.0 - underside * dotMask * mix(0.08, 0.24, depth);
-  color += mix(u_color, vec3(1.0), 0.45) * dotMask * hover * 0.05;
+  vec3 color = mix(base, dotColor, dotMask);
+  color += mix(u_color, vec3(1.0), 0.22) * dotMask * hover * 0.22;
 
   gl_FragColor = vec4(color, 1.0);
 }
@@ -255,6 +228,7 @@ export default function Home() {
   const pointerRef = useRef<PointerState>({ active: 0, x: 0.5, y: 0.5 });
   const [settings, setSettings] = useState<ShaderSettings>(defaultSettings);
   const [shaderError, setShaderError] = useState<string | null>(null);
+  const [panelVisible, setPanelVisible] = useState(true);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -333,11 +307,17 @@ export default function Home() {
       gl.viewport(0, 0, width, height);
     };
 
+    const smoothedPointer: PointerState = { ...pointerRef.current };
+
     const render = (now: number) => {
       resize();
 
       const current = settingsRef.current;
-      const pointer = pointerRef.current;
+      const targetPointer = pointerRef.current;
+      smoothedPointer.x += (targetPointer.x - smoothedPointer.x) * 0.14;
+      smoothedPointer.y += (targetPointer.y - smoothedPointer.y) * 0.14;
+      smoothedPointer.active +=
+        (targetPointer.active - smoothedPointer.active) * 0.1;
       const rgb = hexToRgb(current.color);
 
       gl.useProgram(program);
@@ -346,8 +326,8 @@ export default function Home() {
       gl.uniform1f(densityLocation, current.density);
       gl.uniform1f(seedLocation, current.seed);
       gl.uniform3f(colorLocation, rgb.r, rgb.g, rgb.b);
-      gl.uniform2f(pointerLocation, pointer.x, pointer.y);
-      gl.uniform1f(pointerActiveLocation, pointer.active);
+      gl.uniform2f(pointerLocation, smoothedPointer.x, smoothedPointer.y);
+      gl.uniform1f(pointerActiveLocation, smoothedPointer.active);
       gl.uniform1f(speedLocation, current.speed);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
@@ -423,13 +403,29 @@ export default function Home() {
         className="shader-canvas"
       />
 
-      <section className="control-panel" aria-label="Shader controls">
-        <div className="panel-heading">
-          <p>Dot Matrix Wave</p>
-          <span>WebGL shader tool</span>
-        </div>
+      {panelVisible ? (
+        <section
+          className="control-panel"
+          id="shader-controls"
+          aria-label="Shader controls"
+        >
+          <div className="panel-header">
+            <div className="panel-heading">
+              <p>Dot Matrix Wave</p>
+              <span>WebGL shader tool</span>
+            </div>
+            <button
+              aria-controls="shader-controls"
+              aria-expanded="true"
+              className="panel-toggle panel-toggle-inline"
+              type="button"
+              onClick={() => setPanelVisible(false)}
+            >
+              Hide
+            </button>
+          </div>
 
-        <label className="control-row">
+          <label className="control-row">
           <span>
             Density
             <strong>{settings.density}</strong>
@@ -444,9 +440,9 @@ export default function Home() {
               updateSetting("density", Number(event.target.value))
             }
           />
-        </label>
+          </label>
 
-        <label className="control-row">
+          <label className="control-row">
           <span>
             Speed
             <strong>{settings.speed.toFixed(2)}x</strong>
@@ -461,9 +457,9 @@ export default function Home() {
               updateSetting("speed", Number(event.target.value))
             }
           />
-        </label>
+          </label>
 
-        <div className="split-controls">
+          <div className="split-controls">
           <div className="seed-display">
             <span>Seed</span>
             <strong>{settings.seed}</strong>
@@ -471,19 +467,36 @@ export default function Home() {
           <button type="button" onClick={randomizeSeed}>
             New seed
           </button>
-        </div>
+          </div>
 
-        <label className="color-field">
-          <span>Shader colour</span>
-          <input
-            type="color"
-            value={settings.color}
-            onChange={(event) => updateSetting("color", event.target.value)}
-          />
-        </label>
+          <label className="color-field">
+          <span>
+            Shader colour
+            <strong>{settings.color.toUpperCase()}</strong>
+          </span>
+          <span className="color-picker-shell">
+            <input
+              aria-label="Choose shader colour"
+              type="color"
+              value={settings.color}
+              onChange={(event) => updateSetting("color", event.target.value)}
+            />
+          </span>
+          </label>
 
-        {shaderError ? <p className="shader-error">{shaderError}</p> : null}
-      </section>
+          {shaderError ? <p className="shader-error">{shaderError}</p> : null}
+        </section>
+      ) : (
+        <button
+          aria-controls="shader-controls"
+          aria-expanded="false"
+          className="panel-toggle panel-toggle-floating"
+          type="button"
+          onClick={() => setPanelVisible(true)}
+        >
+          Show controls
+        </button>
+      )}
     </main>
   );
 }
