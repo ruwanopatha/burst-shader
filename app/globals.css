@@ -246,6 +246,31 @@ input {
   width: calc(100% + 16px);
 }
 
+.export-button {
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 6px;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  height: 42px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+  width: 100%;
+}
+
+.export-button:hover {
+  background: color-mix(in srgb, var(--accent) 20%, rgb(255 255 255 / 0.08));
+  border-color: color-mix(in srgb, var(--accent) 58%, white 12%);
+}
+
+.export-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .shader-error {
   background: rgb(255 68 91 / 0.15);
   border: 1px solid rgb(255 129 145 / 0.36);

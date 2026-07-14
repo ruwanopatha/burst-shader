@@ -392,6 +392,28 @@ export default function Home() {
     });
   };
 
+  const exportShader = () => {
+    const exportSource = `// Dot Matrix Wave fragment shader
+// Exported settings:
+// u_density: ${settings.density.toFixed(1)}
+// u_seed: ${settings.seed.toFixed(1)}
+// u_speed: ${settings.speed.toFixed(2)}
+// u_color: ${settings.color}
+
+${fragmentShaderSource.trim()}
+`;
+    const blob = new Blob([exportSource], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "dot-matrix-wave.frag.glsl";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <main
       className="shader-tool"
@@ -483,6 +505,14 @@ export default function Home() {
             />
           </span>
           </label>
+
+          <button
+            className="export-button"
+            type="button"
+            onClick={exportShader}
+          >
+            Export GLSL
+          </button>
 
           {shaderError ? <p className="shader-error">{shaderError}</p> : null}
         </section>

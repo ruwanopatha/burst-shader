@@ -240,6 +240,29 @@
         width: calc(100% + 16px);
       }
 
+      .export-button {
+        background: rgb(255 255 255 / 0.08);
+        border: 1px solid rgb(255 255 255 / 0.16);
+        border-radius: 6px;
+        color: var(--foreground);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 700;
+        height: 42px;
+        transition: background 160ms ease, border-color 160ms ease;
+        width: 100%;
+      }
+
+      .export-button:hover {
+        background: color-mix(in srgb, var(--accent) 20%, rgb(255 255 255 / 0.08));
+        border-color: color-mix(in srgb, var(--accent) 58%, white 12%);
+      }
+
+      .export-button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+
       .shader-error {
         background: rgb(255 68 91 / 0.15);
         border: 1px solid rgb(255 129 145 / 0.36);
@@ -328,6 +351,8 @@
             <input id="color" aria-label="Choose shader colour" type="color" value="#7e87a8" />
           </span>
         </label>
+
+        <button class="export-button" id="export-shader" type="button">Export GLSL</button>
 
         <p class="shader-error" id="shader-error" style="display: none"></p>
       </section>
@@ -621,6 +646,7 @@ void main() {
       const colorInput = document.getElementById("color");
       const colorValue = document.getElementById("color-value");
       const newSeedButton = document.getElementById("new-seed");
+      const exportShaderButton = document.getElementById("export-shader");
       const controlsPanel = document.getElementById("shader-controls");
       const hideControlsButton = document.getElementById("hide-controls");
       const showControlsButton = document.getElementById("show-controls");
@@ -648,6 +674,27 @@ void main() {
         }
         settings.seed = nextSeed;
         seedValue.textContent = String(settings.seed);
+      });
+
+      exportShaderButton.addEventListener("click", () => {
+        const exportSource = `// Dot Matrix Wave fragment shader
+// Exported settings:
+// u_density: ${settings.density.toFixed(1)}
+// u_seed: ${settings.seed.toFixed(1)}
+// u_speed: ${settings.speed.toFixed(2)}
+// u_color: ${settings.color}
+
+${fragmentShaderSource.trim()}
+`;
+        const blob = new Blob([exportSource], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "dot-matrix-wave.frag.glsl";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
       });
 
       hideControlsButton.addEventListener("click", () => {
