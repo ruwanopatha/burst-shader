@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dot Matrix Wave Shader",
-  description: "A full-viewport WebGL shader tool with live controls.",
+  title: "Prismatic Burst Shader Studio",
+  description: "An interactive WebGL prismatic burst with live controls and pointer displacement.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

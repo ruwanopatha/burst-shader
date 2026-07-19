@@ -1,29 +1,24 @@
-# Dot Matrix Wave Shader
+# Prismatic Burst Shader
 
-A full-viewport WebGL shader tool for generating animated dot matrix wave
-fields with live controls.
+An interactive, full-viewport WebGL prismatic burst inspired by the React Bits
+background effect. It includes live customization controls, an asymmetric
+liquid-lens pointer displacement, and a ready-to-paste Webflow code export.
 
 ## Controls
 
-- Density adjusts the number of dot cells in the matrix.
-- Seed displays the current five-digit procedural value.
-- New seed generates a fresh five-digit matrix animation variant.
-- Shader colour updates the dot and mesh glow colour.
-- Speed controls animation time scaling.
-- Cursor hover pushes and brightens the nearby wave field.
+- Intensity and animation speed
+- Rotate, Rotate 3D, and Hover animation modes
+- Editable multi-stop color gradient
+- Ray distortion and discrete ray count
+- Hover dampness and displacement strength
+- Pause and reset actions
 
-## Shader Notes
+## Webflow Export
 
-The implementation follows core patterns from
-[The Book of Shaders](https://thebookofshaders.com/):
-
-- normalized fragment coordinates from `gl_FragCoord / u_resolution`
-- `u_time` and `u_resolution` uniforms for responsive animation
-- tiled coordinate space for the matrix grid
-- deterministic pseudo-random values for seeded cell variation
-- seeded camera tilt, perspective projection, and depth shading
-- cursor-driven uniforms for hover ripples and local distortion
-- layered sine and radial waves for procedural motion
+Choose **Export for Webflow** in the controls. The generated Embed snippet
+captures the current settings and includes the complete shader and pointer
+interaction. Paste it into a Webflow Embed element and set the parent element
+to the desired height.
 
 ## Run Locally
 
@@ -34,7 +29,7 @@ npm run dev
 
 Then open `http://localhost:3000/`.
 
-## Validate
+## Build
 
 ```bash
 npm run build
