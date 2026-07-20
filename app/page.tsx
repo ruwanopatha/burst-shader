@@ -273,7 +273,7 @@ export default function Home() {
             className="export-button"
             onClick={() => setExportOpen(true)}
           >
-            Export for Webflow
+            Export Code
           </button>
           <p className="hover-note">Move across the canvas to softly bend the burst.</p>
         </aside>

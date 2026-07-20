@@ -15,7 +15,7 @@ liquid-lens pointer displacement, and a ready-to-paste Webflow code export.
 
 ## Webflow Export
 
-Choose **Export for Webflow** in the controls. The generated Embed snippet
+Choose **Export Code** in the controls. The generated Embed snippet
 captures the current settings and includes the complete shader and pointer
 interaction. Paste it into a Webflow Embed element and set the parent element
 to the desired height.
