@@ -1,8 +1,11 @@
 # Prismatic Burst Shader
 
 An interactive, full-viewport WebGL prismatic burst inspired by the React Bits
-background effect. It includes live customization controls, an asymmetric
-liquid-lens pointer displacement, and a ready-to-paste Webflow code export.
+background effect. It includes live customization controls, subtle pointer
+movement, and a ready-to-paste Webflow code export.
+
+The renderer caps pixel density and frame rate, pauses GPU work when idle or
+off-screen, and uses a reduced ray-march path for production-friendly performance.
 
 ## Controls
 
@@ -10,7 +13,7 @@ liquid-lens pointer displacement, and a ready-to-paste Webflow code export.
 - Rotate, Rotate 3D, and Hover animation modes
 - Editable multi-stop color gradient
 - Ray distortion and discrete ray count
-- Hover dampness and displacement strength
+- Hover dampness and movement strength
 - Pause and reset actions
 
 ## Webflow Export

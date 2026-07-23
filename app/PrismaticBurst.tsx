@@ -13,18 +13,15 @@ type PrismaticBurstProps = {
   distort?: number;
   paused?: boolean;
   offset?: { x?: number | string; y?: number | string };
+  hoverMovement?: number;
   hoverDampness?: number;
-  hoverDisplacement?: number;
   rayCount?: number;
   mixBlendMode?: React.CSSProperties["mixBlendMode"] | "none";
 };
 
 export const vertexShader = `#version 300 es
 in vec2 position;
-in vec2 uv;
-out vec2 vUv;
 void main() {
-  vUv = uv;
   gl_Position = vec4(position, 0.0, 1.0);
 }`;
 
@@ -41,7 +38,7 @@ uniform float uSpeed;
 uniform int uAnimType;
 uniform vec2 uMouse;
 uniform float uHoverActive;
-uniform float uHoverDisplacement;
+uniform float uHoverMovement;
 uniform int uColorCount;
 uniform float uDistort;
 uniform vec2 uOffset;
@@ -82,9 +79,7 @@ float edgeFade(vec2 frag, vec2 res, vec2 offset){
   float s = q * 0.5;
   s = pow(s, 1.5);
   float tail = 1.0 - pow(1.0 - s, 2.0);
-  s = mix(s, tail, 0.2);
-  float dn = (layeredNoise(frag * 0.15) - 0.5) * 0.0015 * s;
-  return clamp(s + dn, 0.0, 1.0);
+  return clamp(mix(s, tail, 0.2), 0.0, 1.0);
 }
 
 mat3 rotX(float a){ float c = cos(a), s = sin(a); return mat3(1.0,0.0,0.0, 0.0,c,-s, 0.0,s,c); }
@@ -110,32 +105,7 @@ void main(){
   vec2 frag = gl_FragCoord.xy;
   float t = uTime * uSpeed;
   float jitterAmp = 0.1 * clamp(uNoiseAmount, 0.0, 1.0);
-  vec2 uv = frag / uResolution;
-  vec2 mouseUv = vec2(uMouse.x, 1.0 - uMouse.y);
-  vec2 aspect = uResolution / min(uResolution.x, uResolution.y);
-  vec2 centered = (uv - 0.5) * aspect;
-  vec2 pointerDelta = (uv - mouseUv) * aspect;
-  float pointerDistance = length(pointerDelta);
-  vec2 pointerDir = normalize(pointerDelta + vec2(0.0001));
-  vec2 pointerSwirl = vec2(-pointerDir.y, pointerDir.x);
-
-  // The same asymmetric liquid lens used by the supplied dot-matrix
-  // reference. Warping the sampling point (rather than only steering the ray)
-  // gives the burst its broad, viscous pull and trailing swirl.
-  float pointerAngle = atan(pointerDelta.y, pointerDelta.x);
-  float falloffWobble = 0.86
-    + 0.13 * sin(pointerAngle * 3.0 + t * 0.42)
-    + 0.08 * sin(pointerAngle * 5.0 - t * 0.31);
-  float hover = uHoverActive * uHoverDisplacement
-    * (1.0 - smoothstep(0.035, 0.47 * falloffWobble, pointerDistance));
-  float liquidBand = hover * smoothstep(0.015, 0.15, pointerDistance);
-  float shear = sin(pointerAngle * 2.0 - t * 0.65) * 0.5 + 0.5;
-  centered += pointerSwirl * liquidBand * mix(0.008, 0.027, shear);
-  centered += pointerDir * liquidBand * 0.019;
-
-  vec2 warpedUv = centered / aspect + 0.5;
-  vec2 warpedFrag = warpedUv * uResolution;
-  vec3 dir = rayDir(warpedFrag, uResolution, uOffset, 1.0);
+  vec3 dir = rayDir(frag, uResolution, uOffset, 1.0);
 
   float marchT = 0.0;
   vec3 col = vec3(0.0);
@@ -152,11 +122,12 @@ void main(){
   mat3 hoverMat = mat3(1.0);
   if(uAnimType == 2){
     vec2 m = uMouse * 2.0 - 1.0;
-    vec3 ang = vec3(m.y * 0.6, m.x * 0.6, 0.0);
+    float hoverAmount = uHoverMovement * uHoverActive;
+    vec3 ang = vec3(m.y * 0.6, m.x * 0.6, 0.0) * hoverAmount;
     hoverMat = rotY(ang.y) * rotX(ang.x);
   }
 
-  for (int i = 0; i < 44; ++i) {
+  for (int i = 0; i < 36; ++i) {
     vec3 P = marchT * dir;
     P.z -= 2.0;
     float rad = length(P);
@@ -171,12 +142,14 @@ void main(){
     }
 
     float stepLen = min(rad - 0.3, n * jitterAmp) + 0.1;
-    float grow = smoothstep(0.35, 3.0, marchT);
-    float a1 = amp * grow * bendAngle(Pl * 0.6, t);
-    float a2 = 0.5 * amp * grow * bendAngle(Pl.zyx * 0.5 + 3.1, t * 0.9);
     vec3 Pb = Pl;
-    Pb.xz = rot2(Pb.xz, a1);
-    Pb.xy = rot2(Pb.xy, a2);
+    if (uDistort > 0.0001) {
+      float grow = smoothstep(0.35, 3.0, marchT);
+      float a1 = amp * grow * bendAngle(Pl * 0.6, t);
+      float a2 = 0.5 * amp * grow * bendAngle(Pl.zyx * 0.5 + 3.1, t * 0.9);
+      Pb.xz = rot2(Pb.xz, a1);
+      Pb.xy = rot2(Pb.xy, a2);
+    }
 
     float rayPattern = smoothstep(
       0.5, 0.7,
@@ -191,16 +164,19 @@ void main(){
       rayPattern *= smoothstep(0.15, 0.95, comb);
     }
 
-    vec3 spectralDefault = 1.0 + vec3(
-      cos(marchT * 3.0 + 0.0),
-      cos(marchT * 3.0 + 1.0),
-      cos(marchT * 3.0 + 2.0)
-    );
-    float saw = fract(marchT * 0.25);
-    float tRay = saw * saw * (3.0 - 2.0 * saw);
-    vec3 userGradient = 2.0 * sampleGradient(tRay);
-    vec3 spectral = (uColorCount > 0) ? userGradient : spectralDefault;
-    vec3 base = (0.05 / (0.4 + stepLen))
+    vec3 spectral;
+    if (uColorCount > 0) {
+      float saw = fract(marchT * 0.25);
+      float tRay = saw * saw * (3.0 - 2.0 * saw);
+      spectral = 2.0 * sampleGradient(tRay);
+    } else {
+      spectral = 1.0 + vec3(
+        cos(marchT * 3.0 + 0.0),
+        cos(marchT * 3.0 + 1.0),
+        cos(marchT * 3.0 + 2.0)
+      );
+    }
+    vec3 base = (0.061 / (0.4 + stepLen))
       * smoothstep(5.0, 0.0, rad)
       * spectral;
 
@@ -236,8 +212,8 @@ export default function PrismaticBurst({
   distort = 0,
   paused = false,
   offset = { x: 0, y: 0 },
+  hoverMovement = 0.25,
   hoverDampness = 0,
-  hoverDisplacement = 1,
   rayCount,
   mixBlendMode = "lighten",
 }: PrismaticBurstProps) {
@@ -250,17 +226,20 @@ export default function PrismaticBurst({
   const hoverTargetRef = useRef(0);
   const hoverSmoothRef = useRef(0);
   const pausedRef = useRef(paused);
+  const speedRef = useRef(speed);
   const dampnessRef = useRef(hoverDampness);
+  const renderRequestedRef = useRef(true);
 
-  useEffect(() => { pausedRef.current = paused; }, [paused]);
-  useEffect(() => { dampnessRef.current = hoverDampness; }, [hoverDampness]);
+  useEffect(() => { pausedRef.current = paused; renderRequestedRef.current = true; }, [paused]);
+  useEffect(() => { speedRef.current = speed; renderRequestedRef.current = true; }, [speed]);
+  useEffect(() => { dampnessRef.current = hoverDampness; renderRequestedRef.current = true; }, [hoverDampness]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const renderer = new Renderer({
-      dpr: Math.min(window.devicePixelRatio || 1, 2),
+      dpr: Math.min(window.devicePixelRatio || 1, window.innerWidth < 768 ? 1 : 1.5),
       alpha: false,
       antialias: false,
     });
@@ -299,7 +278,7 @@ export default function PrismaticBurst({
         uAnimType: { value: 1 },
         uMouse: { value: [0.5, 0.5] },
         uHoverActive: { value: 0 },
-        uHoverDisplacement: { value: 1 },
+        uHoverMovement: { value: 0.25 },
         uColorCount: { value: 0 },
         uDistort: { value: 0 },
         uOffset: { value: [0, 0] },
@@ -314,6 +293,7 @@ export default function PrismaticBurst({
     const resize = () => {
       renderer.setSize(container.clientWidth || 1, container.clientHeight || 1);
       program.uniforms.uResolution.value = [gl.drawingBufferWidth, gl.drawingBufferHeight];
+      renderRequestedRef.current = true;
     };
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(container);
@@ -326,24 +306,44 @@ export default function PrismaticBurst({
         Math.min(Math.max((event.clientY - rect.top) / Math.max(rect.height, 1), 0), 1),
       ];
       hoverTargetRef.current = 1;
+      renderRequestedRef.current = true;
     };
-    const onPointerEnter = () => { hoverTargetRef.current = 1; };
-    const onPointerLeave = () => { hoverTargetRef.current = 0; };
+    const onPointerEnter = () => { hoverTargetRef.current = 1; renderRequestedRef.current = true; };
+    const onPointerLeave = () => { hoverTargetRef.current = 0; renderRequestedRef.current = true; };
     container.addEventListener("pointermove", onPointerMove, { passive: true });
     container.addEventListener("pointerenter", onPointerEnter, { passive: true });
     container.addEventListener("pointerleave", onPointerLeave, { passive: true });
 
+    let isVisible = true;
+    const intersectionObserver = new IntersectionObserver(([entry]) => {
+      isVisible = entry?.isIntersecting ?? true;
+      if (isVisible) renderRequestedRef.current = true;
+    }, { threshold: 0.01 });
+    intersectionObserver.observe(container);
+
     let frame = 0;
-    let last = performance.now();
+    let lastTick = performance.now();
+    let lastRender = 0;
     let elapsed = 0;
     const render = (now: number) => {
-      const delta = Math.max(0, now - last) * 0.001;
-      last = now;
-      if (!pausedRef.current) elapsed += delta;
+      frame = requestAnimationFrame(render);
+      if (!isVisible || document.hidden) {
+        lastTick = now;
+        return;
+      }
+      if (now - lastRender < 1000 / 45) return;
+      const delta = Math.min(0.05, Math.max(0, now - lastTick) * 0.001);
+      lastTick = now;
+      lastRender = now;
+      if (!pausedRef.current && Math.abs(speedRef.current) > 0.0001) elapsed += delta;
       const tau = 0.02 + Math.min(Math.max(dampnessRef.current, 0), 1) * 0.5;
       const alpha = 1 - Math.exp(-delta / tau);
       const target = mouseTargetRef.current;
       const smooth = mouseSmoothRef.current;
+      const pointerMoving = Math.abs(target[0] - smooth[0]) + Math.abs(target[1] - smooth[1]) > 0.0001;
+      const hoverMoving = Math.abs(hoverTargetRef.current - hoverSmoothRef.current) > 0.0001;
+      const timeMoving = !pausedRef.current && Math.abs(speedRef.current) > 0.0001;
+      if (!renderRequestedRef.current && !pointerMoving && !hoverMoving && !timeMoving) return;
       smooth[0] += (target[0] - smooth[0]) * alpha;
       smooth[1] += (target[1] - smooth[1]) * alpha;
       hoverSmoothRef.current += (hoverTargetRef.current - hoverSmoothRef.current) * alpha;
@@ -351,12 +351,13 @@ export default function PrismaticBurst({
       program.uniforms.uHoverActive.value = hoverSmoothRef.current;
       program.uniforms.uTime.value = elapsed;
       renderer.render({ scene: mesh });
-      frame = requestAnimationFrame(render);
+      renderRequestedRef.current = false;
     };
     frame = requestAnimationFrame(render);
 
     return () => {
       cancelAnimationFrame(frame);
+      intersectionObserver.disconnect();
       resizeObserver.disconnect();
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerenter", onPointerEnter);
@@ -385,7 +386,7 @@ export default function PrismaticBurst({
     program.uniforms.uDistort.value = distort;
     program.uniforms.uOffset.value = [toPx(offset.x), toPx(offset.y)];
     program.uniforms.uRayCount.value = Math.max(0, Math.floor(rayCount ?? 0));
-    program.uniforms.uHoverDisplacement.value = hoverDisplacement;
+    program.uniforms.uHoverMovement.value = hoverMovement;
 
     let count = 0;
     if (colors?.length) {
@@ -410,7 +411,8 @@ export default function PrismaticBurst({
       gradient.needsUpdate = true;
     }
     program.uniforms.uColorCount.value = count;
-  }, [intensity, speed, animationType, colors, distort, offset.x, offset.y, rayCount, hoverDisplacement]);
+    renderRequestedRef.current = true;
+  }, [intensity, speed, animationType, colors, distort, offset.x, offset.y, rayCount, hoverMovement]);
 
   return <div className="prismatic-burst-container" ref={containerRef} />;
 }

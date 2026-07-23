@@ -10,20 +10,20 @@ type Settings = {
   animationType: AnimationType;
   colors: string[];
   distort: number;
+  hoverMovement: number;
   hoverDampness: number;
-  hoverDisplacement: number;
   rayCount: number;
   paused: boolean;
 };
 
 const defaults: Settings = {
-  intensity: 2,
-  speed: 0.5,
-  animationType: "rotate3d",
-  colors: ["#daca24", "#fff266", "#bababa"],
+  intensity: 1.3,
+  speed: 0,
+  animationType: "hover",
+  colors: ["#3dbf62", "#1b487e"],
   distort: 0,
-  hoverDampness: 0.25,
-  hoverDisplacement: 1,
+  hoverMovement: 0.25,
+  hoverDampness: 1,
   rayCount: 0,
   paused: false,
 };
@@ -106,8 +106,8 @@ export default function Home() {
           animationType={settings.animationType}
           colors={colors}
           distort={settings.distort}
+          hoverMovement={settings.hoverMovement}
           hoverDampness={settings.hoverDampness}
-          hoverDisplacement={settings.hoverDisplacement}
           rayCount={settings.rayCount}
           paused={settings.paused}
           mixBlendMode="lighten"
@@ -227,20 +227,20 @@ export default function Home() {
             onChange={(value) => update("distort", value)}
           />
           <RangeControl
+            label="Hover movement"
+            value={settings.hoverMovement}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(value) => update("hoverMovement", value)}
+          />
+          <RangeControl
             label="Hover dampness"
             value={settings.hoverDampness}
             min={0}
             max={1}
             step={0.01}
             onChange={(value) => update("hoverDampness", value)}
-          />
-          <RangeControl
-            label="Hover displacement"
-            value={settings.hoverDisplacement}
-            min={0}
-            max={2}
-            step={0.01}
-            onChange={(value) => update("hoverDisplacement", value)}
           />
           <RangeControl
             label="Ray count"
@@ -275,7 +275,7 @@ export default function Home() {
           >
             Export Code
           </button>
-          <p className="hover-note">Move across the canvas to softly bend the burst.</p>
+          <p className="hover-note">Move across the canvas to subtly steer the burst.</p>
         </aside>
       )}
 
